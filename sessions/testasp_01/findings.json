@@ -1,8 +1,8 @@
 [
   {
-    "finding_id": "f_2b014f",
-    "endpoint_id": "ep_746e64",
-    "log_id": "log_331d4d",
+    "finding_id": "f_d4e615",
+    "endpoint_id": "ep_b6f843",
+    "log_id": "log_1d79a2",
     "url": "http://testasp.vulnweb.com/showforum.asp",
     "param": "id",
     "vuln_type": "idor",
@@ -15,9 +15,9 @@
     "evidence": "\r\n<!DOCTYPE HTML PUBLIC \"-//W3C//DTD HTML 4.01 Transitional//EN\" \"http://www.w3.org/TR/html4/loose.dtd\">\r\n<html><!-- InstanceBegin template=\"/Templates/MainTemplate.dwt.asp\" codeOutsideHTMLIsLocked=\"f"
   },
   {
-    "finding_id": "f_9cbf76",
-    "endpoint_id": "ep_746e64",
-    "log_id": "log_6d8e7c",
+    "finding_id": "f_5868ad",
+    "endpoint_id": "ep_b6f843",
+    "log_id": "log_91ffb7",
     "url": "http://testasp.vulnweb.com/showforum.asp",
     "param": "id",
     "vuln_type": "sqli",
@@ -30,9 +30,9 @@
     "evidence": "<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.0 Strict//EN\" \"http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd\">\r\n<html xmlns=\"http://www.w3.org/1999/xhtml\">\r\n<head>\r\n<meta http-equiv=\"Content-Type\" cont"
   },
   {
-    "finding_id": "f_b6cd7a",
-    "endpoint_id": "ep_746e64",
-    "log_id": "log_61132d",
+    "finding_id": "f_e8871a",
+    "endpoint_id": "ep_b6f843",
+    "log_id": "log_5e0b52",
     "url": "http://testasp.vulnweb.com/showforum.asp",
     "param": "id",
     "vuln_type": "sqli",
@@ -45,9 +45,9 @@
     "evidence": "<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.0 Strict//EN\" \"http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd\">\r\n<html xmlns=\"http://www.w3.org/1999/xhtml\">\r\n<head>\r\n<meta http-equiv=\"Content-Type\" cont"
   },
   {
-    "finding_id": "f_a212ca",
-    "endpoint_id": "ep_746e64",
-    "log_id": "log_349108",
+    "finding_id": "f_4af187",
+    "endpoint_id": "ep_b6f843",
+    "log_id": "log_3f01ef",
     "url": "http://testasp.vulnweb.com/showforum.asp",
     "param": "id",
     "vuln_type": "sqli",
@@ -60,9 +60,9 @@
     "evidence": "<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.0 Strict//EN\" \"http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd\">\r\n<html xmlns=\"http://www.w3.org/1999/xhtml\">\r\n<head>\r\n<meta http-equiv=\"Content-Type\" cont"
   },
   {
-    "finding_id": "f_c839e5",
-    "endpoint_id": "ep_746e64",
-    "log_id": "log_97f506",
+    "finding_id": "f_34a008",
+    "endpoint_id": "ep_b6f843",
+    "log_id": "log_a37877",
     "url": "http://testasp.vulnweb.com/showforum.asp",
     "param": "id",
     "vuln_type": "sqli",
@@ -75,9 +75,9 @@
     "evidence": "<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.0 Strict//EN\" \"http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd\">\r\n<html xmlns=\"http://www.w3.org/1999/xhtml\">\r\n<head>\r\n<meta http-equiv=\"Content-Type\" cont"
   },
   {
-    "finding_id": "f_8b2bfb",
-    "endpoint_id": "ep_746e64",
-    "log_id": "log_86c59d",
+    "finding_id": "f_99992d",
+    "endpoint_id": "ep_b6f843",
+    "log_id": "log_81ffd5",
     "url": "http://testasp.vulnweb.com/showforum.asp",
     "param": "id",
     "vuln_type": "sqli",
@@ -90,9 +90,9 @@
     "evidence": "<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.0 Strict//EN\" \"http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd\">\r\n<html xmlns=\"http://www.w3.org/1999/xhtml\">\r\n<head>\r\n<meta http-equiv=\"Content-Type\" cont"
   },
   {
-    "finding_id": "f_a98107",
-    "endpoint_id": "ep_746e64",
-    "log_id": "log_74f01a",
+    "finding_id": "f_7e7bd3",
+    "endpoint_id": "ep_b6f843",
+    "log_id": "log_e026da",
     "url": "http://testasp.vulnweb.com/showforum.asp",
     "param": "id",
     "vuln_type": "sqli",
@@ -105,9 +105,9 @@
     "evidence": "<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.0 Strict//EN\" \"http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd\">\r\n<html xmlns=\"http://www.w3.org/1999/xhtml\">\r\n<head>\r\n<meta http-equiv=\"Content-Type\" cont"
   },
   {
-    "finding_id": "f_5231e4",
-    "endpoint_id": "ep_257e58",
-    "log_id": "log_ea110c",
+    "finding_id": "f_1c86fb",
+    "endpoint_id": "ep_e91495",
+    "log_id": "log_936329",
     "url": "http://testasp.vulnweb.com/showthread.asp",
     "param": "id",
     "vuln_type": "sqli",
@@ -120,9 +120,9 @@
     "evidence": "<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.0 Strict//EN\" \"http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd\">\r\n<html xmlns=\"http://www.w3.org/1999/xhtml\">\r\n<head>\r\n<meta http-equiv=\"Content-Type\" cont"
   },
   {
-    "finding_id": "f_79d5e2",
-    "endpoint_id": "ep_257e58",
-    "log_id": "log_5e0fb3",
+    "finding_id": "f_d9766e",
+    "endpoint_id": "ep_e91495",
+    "log_id": "log_05e00d",
     "url": "http://testasp.vulnweb.com/showthread.asp",
     "param": "id",
     "vuln_type": "sqli",
@@ -135,9 +135,9 @@
     "evidence": "<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.0 Strict//EN\" \"http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd\">\r\n<html xmlns=\"http://www.w3.org/1999/xhtml\">\r\n<head>\r\n<meta http-equiv=\"Content-Type\" cont"
   },
   {
-    "finding_id": "f_0c42ab",
-    "endpoint_id": "ep_257e58",
-    "log_id": "log_7ffaff",
+    "finding_id": "f_34b7f0",
+    "endpoint_id": "ep_e91495",
+    "log_id": "log_c393fd",
     "url": "http://testasp.vulnweb.com/showthread.asp",
     "param": "id",
     "vuln_type": "sqli",
@@ -150,9 +150,9 @@
     "evidence": "<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.0 Strict//EN\" \"http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd\">\r\n<html xmlns=\"http://www.w3.org/1999/xhtml\">\r\n<head>\r\n<meta http-equiv=\"Content-Type\" cont"
   },
   {
-    "finding_id": "f_b4fdf2",
-    "endpoint_id": "ep_257e58",
-    "log_id": "log_f435f8",
+    "finding_id": "f_c889fe",
+    "endpoint_id": "ep_e91495",
+    "log_id": "log_82a484",
     "url": "http://testasp.vulnweb.com/showthread.asp",
     "param": "id",
     "vuln_type": "sqli",
@@ -165,9 +165,9 @@
     "evidence": "<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.0 Strict//EN\" \"http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd\">\r\n<html xmlns=\"http://www.w3.org/1999/xhtml\">\r\n<head>\r\n<meta http-equiv=\"Content-Type\" cont"
   },
   {
-    "finding_id": "f_8eb94f",
-    "endpoint_id": "ep_257e58",
-    "log_id": "log_a34c88",
+    "finding_id": "f_cf62ad",
+    "endpoint_id": "ep_e91495",
+    "log_id": "log_a488af",
     "url": "http://testasp.vulnweb.com/showthread.asp",
     "param": "id",
     "vuln_type": "sqli",
@@ -180,9 +180,9 @@
     "evidence": "<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.0 Strict//EN\" \"http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd\">\r\n<html xmlns=\"http://www.w3.org/1999/xhtml\">\r\n<head>\r\n<meta http-equiv=\"Content-Type\" cont"
   },
   {
-    "finding_id": "f_ec8ba3",
-    "endpoint_id": "ep_257e58",
-    "log_id": "log_2908f2",
+    "finding_id": "f_04c777",
+    "endpoint_id": "ep_e91495",
+    "log_id": "log_eddfa4",
     "url": "http://testasp.vulnweb.com/showthread.asp",
     "param": "id",
     "vuln_type": "sqli",

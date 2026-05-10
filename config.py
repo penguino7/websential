@@ -12,8 +12,8 @@ GEMINI_MODEL   = "gemini-2.5-pro"
 
 # Option 2: Ollama local (không cần internet, không rate limit)
 USE_OLLAMA     = True         # True = dùng Ollama, False = dùng Gemini
-OLLAMA_MODEL   = "mistral"    # model đã pull về
-OLLAMA_URL     = "http://localhost:11434/api/generate"
+OLLAMA_MODEL   = "qwen2.5-coder:14b"    # model đã pull về
+OLLAMA_URL     = "http://192.168.62.107:11434/api/chat"
 
 # ── Crawler ───────────────────────────────────────────────────────────────────
 MAX_DEPTH        = 2     # Độ sâu crawl (2 = đủ cho hầu hết web)

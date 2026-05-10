@@ -10,13 +10,13 @@ import requests
 
 log = logging.getLogger(__name__)
 
-OLLAMA_URL = "http://localhost:11434/api/generate"
+OLLAMA_URL = "http://192.168.62.107:11434/api/generate"
 
 
 def is_alive() -> bool:
     """Kiểm tra Ollama server có đang chạy không."""
     try:
-        r = requests.get("http://localhost:11434/api/tags", timeout=3)
+        r = requests.get("http://192.168.62.107:11434/api/tags", timeout=3)
         return r.status_code == 200
     except Exception:
         return False
