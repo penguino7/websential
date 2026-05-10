@@ -1,0 +1,180 @@
+[
+  {
+    "id": "ep_5a541e",
+    "url": "http://testasp.vulnweb.com/Login.asp",
+    "method": "GET",
+    "params": [
+      "RetURL"
+    ],
+    "param_types": {
+      "RetURL": "string"
+    },
+    "source": "static",
+    "requires_auth": false,
+    "content_type": "text/html",
+    "post_body_sample": null,
+    "response_sample": {},
+    "risk_level": "high",
+    "likely_vulns": [
+      "auth_bypass"
+    ],
+    "risk_reason": "rule-based",
+    "discovered_at": "2026-05-10T14:21:35.310762"
+  },
+  {
+    "id": "ep_407d61",
+    "url": "http://testasp.vulnweb.com/Register.asp",
+    "method": "GET",
+    "params": [
+      "RetURL"
+    ],
+    "param_types": {
+      "RetURL": "string"
+    },
+    "source": "static",
+    "requires_auth": false,
+    "content_type": "text/html",
+    "post_body_sample": null,
+    "response_sample": {},
+    "risk_level": "high",
+    "likely_vulns": [],
+    "risk_reason": "rule-based",
+    "discovered_at": "2026-05-10T14:21:35.310762"
+  },
+  {
+    "id": "ep_746e64",
+    "url": "http://testasp.vulnweb.com/showforum.asp",
+    "method": "GET",
+    "params": [
+      "id"
+    ],
+    "param_types": {
+      "id": "integer"
+    },
+    "source": "static",
+    "requires_auth": false,
+    "content_type": "text/html",
+    "post_body_sample": null,
+    "response_sample": {},
+    "risk_level": "high",
+    "likely_vulns": [
+      "idor",
+      "sqli"
+    ],
+    "risk_reason": "rule-based",
+    "discovered_at": "2026-05-10T14:21:35.310762"
+  },
+  {
+    "id": "ep_105444",
+    "url": "http://testasp.vulnweb.com/Login.asp?RetURL=%2FDefault%2Easp%3F",
+    "method": "POST",
+    "params": [
+      "tfUName",
+      "tfUPass"
+    ],
+    "param_types": {
+      "tfUName": "string",
+      "tfUPass": "string"
+    },
+    "source": "static",
+    "requires_auth": false,
+    "content_type": "application/x-www-form-urlencoded",
+    "post_body_sample": null,
+    "response_sample": {},
+    "risk_level": "high",
+    "likely_vulns": [
+      "auth_bypass"
+    ],
+    "risk_reason": "rule-based",
+    "discovered_at": "2026-05-10T14:21:38.058635"
+  },
+  {
+    "id": "ep_48cd95",
+    "url": "http://testasp.vulnweb.com/Register.asp?RetURL=%2FDefault%2Easp%3F",
+    "method": "POST",
+    "params": [
+      "tfUName",
+      "tfRName",
+      "tfEmail",
+      "tfUPass"
+    ],
+    "param_types": {
+      "tfUName": "string",
+      "tfRName": "string",
+      "tfEmail": "string",
+      "tfUPass": "string"
+    },
+    "source": "static",
+    "requires_auth": false,
+    "content_type": "application/x-www-form-urlencoded",
+    "post_body_sample": null,
+    "response_sample": {},
+    "risk_level": "high",
+    "likely_vulns": [],
+    "risk_reason": "rule-based",
+    "discovered_at": "2026-05-10T14:21:38.738050"
+  },
+  {
+    "id": "ep_257e58",
+    "url": "http://testasp.vulnweb.com/showthread.asp",
+    "method": "GET",
+    "params": [
+      "id"
+    ],
+    "param_types": {
+      "id": "integer"
+    },
+    "source": "static",
+    "requires_auth": false,
+    "content_type": "text/html",
+    "post_body_sample": null,
+    "response_sample": {},
+    "risk_level": "high",
+    "likely_vulns": [
+      "idor",
+      "sqli"
+    ],
+    "risk_reason": "rule-based",
+    "discovered_at": "2026-05-10T14:21:39.637947"
+  },
+  {
+    "id": "ep_432438",
+    "url": "http://testasp.vulnweb.com/Templatize.asp",
+    "method": "GET",
+    "params": [
+      "item"
+    ],
+    "param_types": {
+      "item": "string"
+    },
+    "source": "static",
+    "requires_auth": false,
+    "content_type": "text/html",
+    "post_body_sample": null,
+    "response_sample": {},
+    "risk_level": "low",
+    "likely_vulns": [],
+    "risk_reason": "rule-based",
+    "discovered_at": "2026-05-10T14:21:35.310762"
+  },
+  {
+    "id": "ep_df80be",
+    "url": "http://testasp.vulnweb.com/Search.asp",
+    "method": "GET",
+    "params": [
+      "tfSearch"
+    ],
+    "param_types": {
+      "tfSearch": "string"
+    },
+    "source": "static",
+    "requires_auth": false,
+    "content_type": "application/x-www-form-urlencoded",
+    "post_body_sample": null,
+    "response_sample": {},
+    "risk_level": "low",
+    "likely_vulns": [],
+    "risk_reason": "rule-based",
+    "discovered_at": "2026-05-10T14:21:37.388209"
+  }
+]
