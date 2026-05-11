@@ -1,60 +1,81 @@
 # =============================================================================
 # llm/ollama_client.py — Giao tiếp với Ollama local
-# Không cần API key, không rate limit, chạy hoàn toàn offline
+#
+# Ollama expose API tại localhost:11434
+# Dùng endpoint /api/chat (chuẩn mới)
+# Không cần API key, không rate limit
 # =============================================================================
 
 import json
 import re
 import logging
 import requests
+import config
 
 log = logging.getLogger(__name__)
 
-OLLAMA_URL = "http://192.168.62.107:11434/api/generate"
+CHAT_URL = f"{config.OLLAMA_HOST}/api/chat"
+TAGS_URL = f"{config.OLLAMA_HOST}/api/tags"
 
 
 def is_alive() -> bool:
     """Kiểm tra Ollama server có đang chạy không."""
     try:
-        r = requests.get("http://192.168.62.107:11434/api/tags", timeout=3)
+        r = requests.get(TAGS_URL, timeout=3)
         return r.status_code == 200
     except Exception:
         return False
 
 
-def call_ollama(prompt: str, model: str = "mistral") -> str:
+def call(prompt: str) -> str:
     """
-    Gửi prompt tới Ollama, trả về text response.
-    Lưu ý: Ollama chậm hơn Gemini, timeout 120s.
+    Gửi prompt → nhận text response từ Ollama.
+
+    Args:
+        prompt: Nội dung câu hỏi gửi cho AI
+
+    Returns:
+        Text response, hoặc "" nếu lỗi
     """
+    if not is_alive():
+        log.error("[ollama] Server chưa chạy! Chạy lệnh: ollama serve")
+        return ""
+
     try:
-        resp = requests.post(OLLAMA_URL, json={
-            "model":  model,
-            "prompt": prompt,
-            "stream": False,
-            "options": {"temperature": 0.1},
+        resp = requests.post(CHAT_URL, json={
+            "model":   config.OLLAMA_MODEL,
+            "messages": [{"role": "user", "content": prompt}],
+            "stream":  False,
         }, timeout=120)
         resp.raise_for_status()
-        return resp.json().get("response", "")
+        return resp.json()["message"]["content"]
+
     except Exception as e:
-        log.error(f"[ollama] Lỗi: {e}")
+        log.error(f"[ollama] Lỗi gọi API: {e}")
         return ""
 
 
-def call_ollama_json(prompt: str, model: str = "mistral") -> list | dict | None:
-    """Gọi Ollama và parse JSON từ response."""
-    raw = call_ollama(prompt, model)
+def call_json(prompt: str) -> list | dict | None:
+    """
+    Gửi prompt → nhận JSON response từ Ollama.
+    Tự động bỏ markdown ```json``` nếu model trả về.
+
+    Returns:
+        list hoặc dict nếu parse thành công, None nếu thất bại
+    """
+    raw = call(prompt)
     if not raw:
         return None
 
-    # Bỏ markdown wrapper nếu có
+    # Bỏ ```json ... ``` nếu model bọc output
     clean = re.sub(r"```json|```", "", raw).strip()
 
-    # Tìm JSON array hoặc object
+    # Tìm JSON array [...] hoặc object {...}
     match = re.search(r"(\[.*\]|\{.*\})", clean, re.DOTALL)
     if not match:
-        log.warning(f"[ollama] Không tìm thấy JSON:\n{raw[:200]}")
+        log.warning(f"[ollama] Không tìm thấy JSON trong response:\n{raw[:300]}")
         return None
+
     try:
         return json.loads(match.group())
     except json.JSONDecodeError as e:

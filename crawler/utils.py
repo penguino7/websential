@@ -1,11 +1,10 @@
 # =============================================================================
-# crawler/utils.py — Hàm tiện ích dùng chung trong crawler
+# crawler/utils.py — Hàm tiện ích dùng chung
 # =============================================================================
 
 import re
 from urllib.parse import urlparse, urljoin, parse_qs, urlunparse
 
-# Đuôi file tĩnh — không cần crawl hay fuzz
 STATIC_EXTENSIONS = {
     ".png", ".jpg", ".jpeg", ".gif", ".svg", ".ico", ".webp",
     ".css", ".woff", ".woff2", ".ttf", ".eot",
@@ -21,24 +20,23 @@ def normalize_url(url: str, base: str = "") -> str:
 
 
 def in_scope(url: str, scope: str) -> bool:
-    """Kiểm tra URL có thuộc domain scope không."""
+    """Kiểm tra URL có trong domain scope không."""
     try:
-        host = urlparse(url).netloc
-        return re.search(scope, host) is not None
+        return re.search(scope, urlparse(url).netloc) is not None
     except Exception:
         return False
 
 
-def is_static_asset(url: str) -> bool:
+def is_static(url: str) -> bool:
     """Nhận biết file tĩnh — bỏ qua khi crawl."""
     path = urlparse(url).path.lower()
     return any(path.endswith(ext) for ext in STATIC_EXTENSIONS)
 
 
-def extract_params_from_url(url: str) -> tuple[str, dict[str, str]]:
+def extract_params(url: str) -> tuple[str, dict[str, str]]:
     """
     Tách query params từ URL, đoán kiểu dữ liệu.
-    Trả về (clean_url, {param: type}).
+    Trả về (clean_url, {param_name: type}).
     """
     p           = urlparse(url)
     qs          = parse_qs(p.query, keep_blank_values=True)
@@ -48,16 +46,16 @@ def extract_params_from_url(url: str) -> tuple[str, dict[str, str]]:
 
 
 def guess_type(value: str) -> str:
-    """Đoán kiểu dữ liệu của param từ giá trị mẫu."""
-    if re.fullmatch(r"\d+", value):                return "integer"
-    if re.fullmatch(r"\d{4}-\d{2}-\d{2}", value): return "date"
+    """Đoán kiểu dữ liệu từ giá trị mẫu."""
+    if re.fullmatch(r"\d+", value):                   return "integer"
+    if re.fullmatch(r"\d{4}-\d{2}-\d{2}", value):    return "date"
     if re.fullmatch(r"[a-fA-F0-9\-]{32,36}", value): return "uuid"
-    if value.lower() in ("true", "false"):         return "boolean"
+    if value.lower() in ("true", "false"):            return "boolean"
     return "string"
 
 
 def dedup_key(url: str, method: str, params: list[str]) -> tuple:
-    """Tạo chữ ký duy nhất cho endpoint — dùng để loại trùng."""
+    """Tạo chữ ký duy nhất cho endpoint — dùng để loại trùng lặp."""
     p     = urlparse(url)
     clean = urlunparse((p.scheme, p.netloc, p.path, "", "", ""))
     return (clean, method.upper(), frozenset(params))
