@@ -16,6 +16,7 @@ log = logging.getLogger(__name__)
 
 CHAT_URL = f"{config.OLLAMA_HOST}/api/chat"
 TAGS_URL = f"{config.OLLAMA_HOST}/api/tags"
+TIMEOUT  = 300  # 5 phút — model 14B cần thời gian
 
 
 def is_alive() -> bool:
@@ -46,7 +47,7 @@ def call(prompt: str) -> str:
             "model":   config.OLLAMA_MODEL,
             "messages": [{"role": "user", "content": prompt}],
             "stream":  False,
-        }, timeout=120)
+        }, timeout=TIMEOUT)
         resp.raise_for_status()
         return resp.json()["message"]["content"]
 
