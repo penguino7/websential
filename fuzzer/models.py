@@ -12,24 +12,35 @@ class LogEntry:
     endpoint_id:   str
     url:           str
     param:         str
-    vuln_type:     str   # sqli | xss | idor
+    vuln_type:     str    # sqli | xss
     payload:       str
+    technique:     str    # error_based | time_based | boolean_based | http_reflection
     request:       dict
     response:      dict
     baseline:      dict
-    is_vulnerable: bool = False
-    confidence:    str  = "none"  # high | medium | low | none
-    duration_ms:   int  = 0
-    log_id:        str  = field(default_factory=lambda: f"log_{uuid.uuid4().hex[:6]}")
-    timestamp:     str  = field(default_factory=lambda: datetime.utcnow().isoformat())
+    is_vulnerable: bool   = False
+    confidence:    str    = "none"   # high | medium | low | none
+    duration_ms:   int    = 0
+    # Chỉ có ở XSS — True khi Playwright xác nhận alert() thực sự trigger
+    playwright_confirmed: bool = False
+    log_id:    str = field(default_factory=lambda: f"log_{uuid.uuid4().hex[:6]}")
+    timestamp: str = field(default_factory=lambda: datetime.utcnow().isoformat())
 
     def to_dict(self) -> dict:
         return {
-            "log_id": self.log_id, "endpoint_id": self.endpoint_id,
-            "url": self.url, "param": self.param,
-            "vuln_type": self.vuln_type, "payload": self.payload,
-            "request": self.request, "response": self.response,
-            "baseline": self.baseline, "is_vulnerable": self.is_vulnerable,
-            "confidence": self.confidence, "duration_ms": self.duration_ms,
-            "timestamp": self.timestamp,
+            "log_id":               self.log_id,
+            "endpoint_id":          self.endpoint_id,
+            "url":                  self.url,
+            "param":                self.param,
+            "vuln_type":            self.vuln_type,
+            "payload":              self.payload,
+            "technique":            self.technique,
+            "request":              self.request,
+            "response":             self.response,
+            "baseline":             self.baseline,
+            "is_vulnerable":        self.is_vulnerable,
+            "confidence":           self.confidence,
+            "duration_ms":          self.duration_ms,
+            "playwright_confirmed": self.playwright_confirmed,
+            "timestamp":            self.timestamp,
         }
