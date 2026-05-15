@@ -18,7 +18,7 @@ import config
 log = logging.getLogger(__name__)
 
 
-def crawl(session_dir: str | Path) -> list[Endpoint]:
+def crawl(session_dir: str | Path, use_ai: bool = True) -> list[Endpoint]:
     """
     Chạy toàn bộ pipeline crawl. Đọc config từ config.py.
 
@@ -35,13 +35,13 @@ def crawl(session_dir: str | Path) -> list[Endpoint]:
 
     # Bước 2: JS crawl (tuỳ chọn)
     if config.USE_JS:
-        from crawler.js_crawler import js_crawl # type: ignore
+        from crawler.js_crawler import js_crawl
         js_eps    = js_crawl(config.TARGET_URL, config.SCOPE)
         endpoints = _merge(endpoints, js_eps)
 
-    # Bước 3: Phân loại rủi ro bằng AI
-    log.info("[crawler] Phân loại rủi ro...")
-    endpoints = classify(endpoints)
+    # Bước 3: Phân loại rủi ro bằng AI (hoặc rule-based nếu use_ai=False)
+    log.info(f"[crawler] Phân loại rủi ro {'(AI)' if use_ai else '(rule-based)'}...")
+    endpoints = classify(endpoints, use_ai=use_ai)
 
     # Bước 4: Lọc + sắp xếp + giới hạn
     endpoints = [ep for ep in endpoints if ep.risk_level != "skip"]

@@ -1,0 +1,657 @@
+ĐÁNH GIÁ SOURCE CODE PROJECT WEBSENTIAL
+Ngày đánh giá: 2026-05-15
+
+Phạm vi đã đọc:
+- Toàn bộ file Python trong project: config.py, analyzer/*.py, crawler/*.py, fuzzer/*.py, llm/*.py, tests/*.py.
+- File cấu hình .vscode/settings.json.
+- File dữ liệu session hiện có trong sessions/testasp_01 để hiểu output runtime.
+- Không đánh giá __pycache__ như source code vì đây là bytecode sinh tự động.
+
+Kết quả kiểm tra nhanh:
+- Đã compile AST trong bộ nhớ cho 20 file Python.
+- Kết quả: không có lỗi cú pháp Python.
+- Không chạy pipeline thực tế vì tests/run_all.py sẽ crawl/fuzz target live theo config hiện tại và có thể tạo traffic mạng.
+
+
+1. MỤC ĐÍCH DỰ ÁN
+=================
+
+Đây là một công cụ kiểm thử bảo mật web dạng crawler + fuzzer + analyzer.
+
+Mục tiêu chính:
+- Crawl website trong phạm vi cấu hình để phát hiện endpoint có query/form/API.
+- Phân loại rủi ro endpoint bằng LLM Ollama hoặc rule-based fallback.
+- Sinh payload kiểm thử SQL Injection và XSS.
+- Fuzz endpoint bằng HTTP request, có một phần xác nhận XSS bằng Playwright.
+- Phân tích log thành finding bảo mật có OWASP/CWE/CVSS, dùng AI và rule cross-check.
+
+Luồng xử lý tổng thể:
+1. tests/run_all.py tạo thư mục session theo config.SESSION_ID.
+2. crawler.crawler.crawl() gọi static crawler và tùy chọn JS crawler.
+3. crawler.classifier.classify() gán risk_level và likely_vulns cho endpoint.
+4. fuzzer.payload_planner.generate_plan() tạo payload plan dựa trên likely_vulns.
+5. fuzzer.sqli_fuzzer.fuzz_sqli() kiểm thử SQLi nhiều kỹ thuật.
+6. fuzzer.xss_fuzzer.fuzz_xss() kiểm thử reflected XSS và xác nhận bằng Playwright.
+7. tests/run_all.py ghi logs.jsonl.
+8. analyzer.log_analyzer.analyze() đọc logs.jsonl và ghi findings.json.
+
+
+2. KIẾN TRÚC TỔNG QUAN
+======================
+
+Điểm tốt:
+- Project được chia module khá rõ: crawler, fuzzer, analyzer, llm, tests.
+- Dữ liệu trung tâm có dataclass Endpoint và LogEntry, giúp truyền dữ liệu giữa các module nhất quán hơn.
+- Có fallback rule-based khi Ollama lỗi/offline.
+- Có static crawler và dynamic crawler bằng Playwright, phù hợp cho cả site HTML truyền thống và SPA.
+- Có phân tách SQLi fuzzer và XSS fuzzer chuyên biệt, tốt hơn generic fuzzer.
+- Có cơ chế cross-check trong analyzer để giảm hallucination từ AI.
+
+Điểm yếu chính:
+- tests/run_all.py hiện đặt DRY_RUN=True nhưng lại bỏ qua generate_plan(), làm payload plan rỗng. Kết quả là SQLi/XSS fuzzer gần như không chạy request nào.
+- fuzzer/fuzzer.py bị lệch interface và thiếu tham số technique khi tạo LogEntry, nếu dùng generic fuzz() sẽ lỗi runtime.
+- Classifier rule-based hiện bỏ sót nhiều param có khả năng XSS như tfSearch, RetURL; một số endpoint được đánh high nhưng likely_vulns rỗng nên fuzzer không kiểm thử.
+- analyzer.analyze() không ghi findings.json rỗng khi không có log vulnerable, dễ giữ lại findings.json cũ và gây hiểu nhầm.
+- sessions/*.json và __pycache__ đang được track trong git; đây là dữ liệu runtime/generated, không nên là source chính.
+- Không có requirements.txt/pyproject.toml nên khó tái tạo môi trường.
+- Không có unit test thật; tests/run_all.py là integration runner có side effect mạng.
+
+
+3. LUỒNG HOẠT ĐỘNG CHI TIẾT THEO PIPELINE
+=========================================
+
+3.1. Cấu hình
+-------------
+config.py hardcode:
+- OLLAMA_HOST = http://192.168.62.102:11434
+- OLLAMA_MODEL = qwen2.5-coder:14b
+- TARGET_URL = http://testasp.vulnweb.com/
+- SCOPE = testasp.vulnweb.com
+- SESSION_ID = testasp_01
+- MAX_DEPTH, MAX_ENDPOINTS, CRAWL_DELAY, USE_JS
+- MAX_REQ_PER_EP, FUZZ_DELAY, REQUEST_TIMEOUT
+
+Project hiện phụ thuộc mạnh vào file config.py, chưa có CLI/env var để đổi target/session an toàn.
+
+3.2. Crawl
+----------
+crawler.crawler.crawl(session_dir, use_ai=True):
+- Tạo session_dir.
+- Gọi static_crawl(TARGET_URL, SCOPE, MAX_DEPTH, CRAWL_DELAY).
+- Nếu USE_JS=True thì import js_crawl() và merge endpoint static + JS.
+- Gọi classify(endpoints, use_ai).
+- Bỏ endpoint risk_level=skip.
+- Sort high -> medium -> low.
+- Cắt theo MAX_ENDPOINTS.
+- Ghi endpoints.json.
+
+static_crawl():
+- BFS từ target_url.
+- Seed thêm path từ robots.txt và sitemap.xml.
+- Bỏ URL ngoài scope hoặc file tĩnh.
+- GET từng page.
+- Thu endpoint từ query string URL hiện tại và link <a href>.
+- Parse form thành endpoint POST/GET với params từ input/textarea/select.
+- Tìm URL ẩn trong script inline và file JS bằng regex.
+
+js_crawl():
+- Dùng Playwright Chromium headless.
+- Hook event request để bắt xhr/fetch/document.
+- Load target, collect link/form sau render.
+- Scroll page để kích hoạt lazy-load.
+- Auto-click các selector phổ biến như nav a, button, role=tab, menu item.
+- Bỏ qua text/href chứa logout, delete, remove.
+
+3.3. Phân loại rủi ro
+---------------------
+crawler.classifier.classify():
+- Nếu use_ai=False: dùng _rule_classify().
+- Nếu use_ai=True: chia batch 5 endpoint, gửi prompt qua llm.ollama_client.call_json().
+- Nếu AI lỗi hoặc output không phải list: fallback rule-based cho batch.
+
+Rule-based:
+- integer param -> high, likely_vulns gồm sqli + idor.
+- path admin/user/account/order/api/auth/login/register/profile -> high.
+- param id/user_id/file/path/token/redirect -> high.
+- param q/query/search/name/msg/comment -> xss, medium nếu chưa high.
+- không có param -> skip.
+
+3.4. Payload planning
+---------------------
+fuzzer.payload_planner.generate_plan():
+- Kiểm tra Ollama bằng is_alive().
+- Chỉ lấy endpoint risk_level high/medium.
+- Nếu endpoint likely_vulns có sqli: detect backend mssql/mysql/generic rồi chọn payload SQLi.
+- Nếu likely_vulns có xss: detect context html_body/html_attribute/js_context rồi chọn payload XSS.
+- Nếu AI offline thì vẫn fallback payload generic.
+
+refine_plan():
+- Dùng ở vòng adaptive.
+- Lọc log có signal như status khác baseline, status 400/500, snippet chứa error/syntax/blocked/encoded.
+- Gửi signal logs cho AI sinh payload mới.
+- Dừng nếu Ollama offline hoặc không có signal.
+
+3.5. Fuzz SQLi
+--------------
+fuzzer.sqli_fuzzer.fuzz_sqli():
+- Lọc endpoints có "sqli" trong likely_vulns.
+- Lấy baseline request.
+- Vòng 1: chạy payload từ plan theo kỹ thuật error, time, boolean, union.
+- Vòng 2..MAX_ROUNDS: nếu chưa có high confidence thì gọi refine_plan() để lấy payload mới.
+- Ghi LogEntry cho mỗi request.
+
+Phát hiện:
+- error_based/union_based: tìm SQL error signature hoặc status 500 khi baseline 200.
+- time_based: duration > 3500ms.
+- boolean_based: response TRUE/FALSE khác nhau > 100 bytes và status đều 200.
+
+3.6. Fuzz XSS
+-------------
+fuzzer.xss_fuzzer.fuzz_xss():
+- Lọc endpoints có "xss" trong likely_vulns.
+- Với từng param: probe reflection bằng PROBE_TEXT.
+- Nếu có reflection, chạy payload XSS qua HTTP.
+- Payload reflect nguyên văn -> suspect medium.
+- Payload HTML-encoded -> suspect low.
+- Candidate suspect sẽ được mở bằng Playwright để xem alert() có trigger thật không.
+- Nếu Playwright confirm, set confidence=high và playwright_confirmed=True.
+
+3.7. Analyze
+------------
+analyzer.log_analyzer.analyze(session_dir):
+- Đọc logs.jsonl.
+- Lọc log có is_vulnerable=True.
+- Log XSS đã playwright_confirmed được tạo Finding High ngay.
+- Log còn lại gửi AI phân tích theo batch 5.
+- Nếu AI lỗi thì fallback _rule_analyze().
+- _cross_check() hạ một số finding High xuống Medium nếu thiếu bằng chứng.
+- Ghi findings.json.
+
+
+4. GIẢI THÍCH TỪNG FILE CODE
+============================
+
+4.1. config.py
+--------------
+Mục đích:
+- Chứa toàn bộ cấu hình runtime: Ollama, target, scope, session, crawler, fuzzer.
+
+Luồng hoạt động:
+- Các module import config trực tiếp.
+- crawler lấy TARGET_URL/SCOPE/MAX_DEPTH/CRAWL_DELAY/USE_JS.
+- fuzzer lấy MAX_REQ_PER_EP/FUZZ_DELAY/REQUEST_TIMEOUT.
+- llm lấy OLLAMA_HOST/OLLAMA_MODEL.
+- tests lấy SESSION_ID.
+
+Đánh giá:
+- Đơn giản, dễ sửa.
+- Nhưng hardcode IP Ollama, target và session; nên chuyển sang env var hoặc CLI arg.
+- Chưa có validation cho URL/scope.
+
+4.2. crawler/__init__.py
+------------------------
+Mục đích:
+- Export crawl và load_endpoints để import ngắn hơn.
+
+Luồng hoạt động:
+- from .crawler import crawl, load_endpoints.
+
+Đánh giá:
+- Gọn, đúng vai trò package facade.
+
+4.3. crawler/models.py
+----------------------
+Mục đích:
+- Định nghĩa dataclass Endpoint, là đơn vị dữ liệu trung tâm của pipeline.
+
+Luồng hoạt động:
+- Crawler tạo Endpoint.
+- Classifier cập nhật risk_level, likely_vulns, risk_reason.
+- Fuzzer dùng Endpoint để tạo request.
+- Endpoint.to_dict() ghi endpoints.json.
+- Endpoint.from_dict() load lại session.
+
+Đánh giá:
+- Thiết kế dataclass phù hợp.
+- id và discovered_at tự sinh tiện cho tracking.
+- Có response_sample nhưng static crawler hiện chỉ lưu status/length, không lưu body_snippet nên XSS context detection ít dữ liệu.
+
+4.4. crawler/utils.py
+---------------------
+Mục đích:
+- Chứa helper URL và kiểu dữ liệu: normalize_url, in_scope, is_static, extract_params, guess_type, dedup_key.
+
+Luồng hoạt động:
+- static_crawler/js_crawler dùng normalize_url, in_scope, is_static.
+- extract_params tách query string thành clean URL và param_types.
+- dedup_key dùng URL sạch + method + tập param để chống trùng endpoint.
+
+Đánh giá:
+- Các helper đúng trọng tâm.
+- Rủi ro: in_scope() dùng re.search(scope, netloc) và scope không escape dấu chấm. Ví dụ dấu "." trong domain được hiểu là wildcard regex; domain chứa chuỗi tương tự có thể lọt scope. Nên dùng so sánh host exact hoặc subdomain:
+  host == scope hoặc host.endswith("." + scope).
+
+4.5. crawler/static_crawler.py
+------------------------------
+Mục đích:
+- Crawl HTML bằng requests + BeautifulSoup để phát hiện endpoint tĩnh.
+
+Luồng hoạt động:
+- static_crawl() khởi tạo queue BFS.
+- _seed_robots() và _seed_sitemap() thêm URL tiềm năng.
+- Với mỗi URL: normalize, kiểm scope/static/depth, GET page.
+- _add_endpoint() thêm endpoint nếu URL có query params.
+- Parse <a>, <form>, <script>.
+- _parse_form() chuyển form thành Endpoint.
+- _mine_js_text() và _mine_js_file() tìm URL ẩn trong JS bằng regex.
+
+Đánh giá:
+- Có nhiều nguồn discovery, phù hợp crawler cơ bản.
+- Các except Exception: pass ở _mine_js_file/_seed_robots/_seed_sitemap làm mất thông tin lỗi; nên log debug.
+- _add_endpoint() bỏ qua URL không có param, hợp lý cho fuzz input nhưng có thể bỏ sót route cần auth/logic.
+- Không dùng requests.Session nên không giữ cookie.
+- Không giới hạn tổng page visited riêng biệt ngoài depth/endpoints; website lớn có thể queue lớn.
+
+4.6. crawler/js_crawler.py
+--------------------------
+Mục đích:
+- Dynamic crawler bằng Playwright để phát hiện endpoint sinh bởi JavaScript/SPAs.
+
+Luồng hoạt động:
+- js_crawl() gọi asyncio.run(_crawl_async()).
+- _crawl_async() mở Chromium headless, thêm cookie nếu có, hook page.on("request").
+- _capture_request() convert request XHR/fetch/document thành Endpoint.
+- _collect_from_dom() lấy link/form sau render.
+- _scroll_page() scroll để kích hoạt lazy-load.
+- _auto_interact() click các element phổ biến để kích hoạt API.
+
+Đánh giá:
+- Thiết kế đúng hướng cho SPA.
+- asyncio.run() có thể lỗi nếu caller đang ở event loop sẵn.
+- Auto-click có blacklist cơ bản nhưng vẫn có rủi ro click hành động state-changing không mong muốn.
+- _parse_body() chỉ parse JSON dict cấp 1 và form; chưa parse nested object/list.
+- Nhiều lỗi bị nuốt hoặc log debug, khó debug khi crawl thiếu endpoint.
+
+4.7. crawler/classifier.py
+--------------------------
+Mục đích:
+- Phân loại risk_level và likely_vulns cho endpoint bằng AI hoặc rule-based.
+
+Luồng hoạt động:
+- classify() nhận list Endpoint.
+- Nếu use_ai=False, gọi _rule_classify() cho từng endpoint.
+- Nếu use_ai=True, chia batch và gọi _classify_batch().
+- _classify_batch() gửi prompt cho Ollama, map kết quả theo id.
+- Nếu AI thất bại, fallback _rule_classify().
+
+Đánh giá:
+- Có fallback tốt.
+- BATCH_SIZE=5 giảm timeout.
+- Thiếu validation từng item AI trả về; nếu AI trả thiếu endpoint, endpoint đó có thể giữ risk unknown.
+- Rule hiện bỏ sót XSS param thực tế như tfSearch vì MED_PARAMS chỉ có "search" không có "tfsearch".
+- Rule đánh high theo path login/register nhưng không luôn gán likely_vulns tương ứng, khiến endpoint high nhưng không được fuzzer test.
+
+4.8. crawler/crawler.py
+-----------------------
+Mục đích:
+- Entry point cho toàn bộ pipeline crawl.
+
+Luồng hoạt động:
+- crawl() gọi static crawl, optional JS crawl, classify, filter/sort/limit, ghi endpoints.json.
+- load_endpoints() load endpoints.json.
+- _merge() hợp nhất static/js theo dedup_key.
+- _print_summary() in thống kê risk.
+
+Đánh giá:
+- Pipeline rõ.
+- use_ai flag là cải tiến hữu ích.
+- _merge() nếu endpoint trùng chỉ set source="both", không merge response_sample/content_type/post_body_sample.
+- Hàm ghi file trực tiếp trong crawl() làm crawler vừa xử lý vừa I/O; chấp nhận được cho script, nhưng khó unit test hơn.
+
+4.9. fuzzer/__init__.py
+-----------------------
+Mục đích:
+- Export fuzz và generate_plan.
+
+Luồng hoạt động:
+- from .fuzzer import fuzz
+- from .payload_planner import generate_plan
+
+Đánh giá:
+- Hiện export generic fuzz() có lỗi runtime/interface mismatch, trong khi runner dùng sqli_fuzzer/xss_fuzzer chuyên biệt. Nên cân nhắc bỏ export generic fuzz hoặc sửa cho đồng bộ.
+
+4.10. fuzzer/models.py
+----------------------
+Mục đích:
+- Định nghĩa LogEntry cho kết quả từng request fuzz.
+
+Luồng hoạt động:
+- SQLi/XSS fuzzer tạo LogEntry.
+- tests/run_all.py serialize bằng to_dict() vào logs.jsonl.
+- analyzer đọc logs.jsonl để tạo Finding.
+
+Đánh giá:
+- Model đủ field quan trọng: request, response, baseline, confidence, duration, playwright_confirmed.
+- technique là field bắt buộc, đúng với nhu cầu analyzer.
+- Không có from_dict(), analyzer dùng dict trực tiếp nên vẫn ổn.
+
+4.11. fuzzer/payload_planner.py
+-------------------------------
+Mục đích:
+- Chứa payload database và logic chọn/refine payload.
+
+Luồng hoạt động:
+- SQLI_PAYLOADS phân nhóm error/time/boolean/union theo backend.
+- XSS_PAYLOADS phân nhóm theo context.
+- generate_plan() tạo plan ban đầu.
+- _detect_backend() dùng extension .asp/.aspx => mssql, .php => mysql, còn lại có thể hỏi AI.
+- _detect_xss_context() dùng response_sample hoặc AI.
+- refine_plan() dùng log vòng trước để sinh payload mới qua AI.
+
+Đánh giá:
+- Payload database khá rõ, có fallback generic.
+- Refine adaptive là điểm mạnh của thiết kế.
+- generate_plan() đã có fallback khi Ollama offline; vì vậy tests/run_all.py không nên bỏ qua hàm này ở DRY_RUN.
+- response_sample hiện nghèo dữ liệu nên _detect_xss_context() thường fallback html_body.
+- Prompt gửi snippets/logs sang Ollama; nếu dùng target thật cần cân nhắc dữ liệu nhạy cảm.
+
+4.12. fuzzer/fuzzer.py
+----------------------
+Mục đích:
+- Generic fuzzer cũ cho SQLi/XSS/IDOR.
+
+Luồng hoạt động:
+- fuzz(endpoints, payload_plan) duyệt endpoint và payload plan dạng list item.
+- _baseline() lấy response chuẩn.
+- _send() gửi GET/POST với payload vào param.
+- _detect() kiểm SQLi error/time/status, XSS reflection/encoded, IDOR length diff.
+
+Đánh giá:
+- File này hiện không đồng bộ với phần còn lại.
+- Lỗi nghiêm trọng: _send() tạo LogEntry nhưng không truyền field technique bắt buộc, sẽ TypeError nếu fuzz() được gọi.
+- payload_plan format trong docstring khác generate_plan() hiện tại.
+- fuzzer/__init__.py export fuzz() nên người dùng có thể gọi nhầm API hỏng.
+- Nên xóa nếu không dùng, hoặc refactor thành wrapper gọi fuzz_sqli/fuzz_xss.
+
+4.13. fuzzer/sqli_fuzzer.py
+---------------------------
+Mục đích:
+- Kiểm thử SQL Injection chuyên biệt với multi-round adaptive fuzzing.
+
+Luồng hoạt động:
+- fuzz_sqli() lọc endpoint có likely_vulns chứa sqli.
+- Với từng endpoint: baseline, vòng 1 payload plan, các vòng refine bằng AI.
+- _fuzz_one_round() chạy error/time/boolean/union payload.
+- _send() gửi request và detect.
+- _send_boolean() gửi true/false payload và so length.
+- _make_request() build GET/POST.
+- _extract_snippet() lấy đoạn response chứa lỗi.
+
+Đánh giá:
+- Kỹ thuật SQLi khá đầy đủ cho mức scanner đơn giản.
+- used_payloads đặt ở cấp endpoint, không gồm param. Với endpoint nhiều param, payload đã dùng ở param đầu sẽ không test lại ở param sau.
+- req_count chỉ tính LogEntry, boolean-based thực tế gửi 2 request nhưng tính 1.
+- time_based dùng ngưỡng tuyệt đối 3500ms, không so với baseline duration; dễ false positive trên endpoint chậm.
+- Không hỗ trợ cookie/auth mặc dù Endpoint có requires_auth.
+
+4.14. fuzzer/xss_fuzzer.py
+--------------------------
+Mục đích:
+- Kiểm thử reflected XSS bằng HTTP fuzz và xác nhận alert() bằng Playwright.
+
+Luồng hoạt động:
+- fuzz_xss() lọc endpoint có likely_vulns chứa xss.
+- _check_reflection() probe từng param.
+- _fuzz_http() gửi payload và detect reflection.
+- _detect_http() check payload raw hoặc encoded trong body.
+- _playwright_confirm() mở browser và test candidate payloads.
+- _build_form_js() điền form POST bằng JS rồi submit.
+
+Đánh giá:
+- Có bước Playwright confirmation là điểm mạnh, giảm false positive.
+- Lỗi logic: candidates chỉ lưu payload, không lưu param; _playwright_confirm() luôn inject vào ep.params[0]. Endpoint nhiều param có thể confirm sai param hoặc bỏ sót vuln.
+- used_payloads dùng chung cho endpoint, không gồm param; có thể bỏ qua test cùng payload ở param khác.
+- _detect_http() đánh is_vulnerable=True cho HTML-encoded payload; analyzer có thể biến thành finding dù chưa executable.
+- _build_form_js() escape còn tối thiểu; payload chứa backslash hoặc pattern JS phức tạp có thể làm script evaluate lỗi.
+
+4.15. analyzer/__init__.py
+--------------------------
+Mục đích:
+- Export analyze và Finding.
+
+Luồng hoạt động:
+- from .log_analyzer import analyze, Finding.
+
+Đánh giá:
+- Gọn, đúng vai trò package facade.
+
+4.16. analyzer/log_analyzer.py
+------------------------------
+Mục đích:
+- Phân tích logs.jsonl thành findings.json, kết hợp AI và rule-based cross-check.
+
+Luồng hoạt động:
+- Finding dataclass định nghĩa output.
+- analyze() load logs, lọc vulnerable, tách Playwright-confirmed và log khác.
+- _make_playwright_finding() tạo High XSS finding chắc chắn.
+- _ai_analyze_batch() và _ai_batch() gửi prompt có ANALYSIS_KNOWLEDGE cho Ollama.
+- Nếu AI lỗi, _rule_analyze() tạo finding fallback.
+- _cross_check() hạ severity một số case thiếu evidence.
+- _save() ghi findings.json.
+- _print_summary() in thống kê.
+
+Đánh giá:
+- Có RAG/prompt nội bộ và cross-check là hướng tốt.
+- Nếu logs.jsonl không tồn tại, rỗng hoặc không có vuln logs, analyze() return [] nhưng không ghi findings.json rỗng. Điều này có thể để lại findings cũ trong session.
+- _rule_analyze() tạo finding Medium cho mọi log is_vulnerable, phụ thuộc hoàn toàn vào fuzzer; nếu fuzzer low-confidence false positive thì analyzer vẫn giữ.
+- _cross_check() chủ yếu hạ High, chưa loại Medium false positive.
+- _load_logs() chưa handle JSONL lỗi từng dòng; một dòng hỏng sẽ làm analyze fail.
+
+4.17. llm/__init__.py
+---------------------
+Mục đích:
+- Package marker rỗng.
+
+Luồng hoạt động:
+- Không có logic.
+
+Đánh giá:
+- Bình thường.
+
+4.18. llm/ollama_client.py
+--------------------------
+Mục đích:
+- Client gọi Ollama local và parse JSON output.
+
+Luồng hoạt động:
+- CHAT_URL và TAGS_URL lấy từ config.
+- is_alive() GET /api/tags timeout 3s.
+- call() kiểm is_alive(), POST /api/chat, trả content hoặc None.
+- call_json() bỏ markdown fence, regex lấy JSON array/object, json.loads().
+
+Đánh giá:
+- Không throw exception ra ngoài, caller dễ fallback.
+- call() gọi is_alive() trước mỗi request, gây thêm request/latency.
+- call_json() dùng regex greedy nên có thể parse sai nếu model trả text có nhiều block JSON/bracket.
+- Không có schema validation output; caller phải tự kiểm.
+- TIMEOUT=300s hợp lý cho model lớn nhưng làm runner treo lâu nếu server chậm.
+
+4.19. tests/run_all.py
+----------------------
+Mục đích:
+- Script chạy toàn bộ pipeline end-to-end.
+
+Luồng hoạt động:
+- Set sys.path về root.
+- DRY_RUN=True.
+- Tạo SESSION.
+- Nếu DRY_RUN=False mới kiểm tra Ollama.
+- Bước 1 crawl(use_ai=not DRY_RUN).
+- Bước 2 nếu DRY_RUN thì ai_payloads = {}, nếu không thì generate_plan().
+- Bước 3 fuzz_sqli(endpoints, ai_payloads).
+- Bước 4 fuzz_xss(endpoints, ai_payloads).
+- Ghi logs.jsonl.
+- Bước 5 analyze(SESSION).
+
+Đánh giá:
+- Tên tests gây hiểu nhầm vì đây không phải unit test mà là integration runner có side effect.
+- Lỗi lớn: DRY_RUN=True nhưng ai_payloads={} khiến fuzz_sqli/fuzz_xss không có plan để chạy. Trong khi generate_plan() đã tự fallback generic khi Ollama offline.
+- Runner có thể crawl/fuzz target live; cần cảnh báo quyền kiểm thử và xác nhận scope trước khi chạy.
+- sys.path.insert là cách script nhanh, nhưng project nên có package/entrypoint chuẩn.
+
+4.20. tests/run_all_test.py
+---------------------------
+Mục đích:
+- Bản sao của tests/run_all.py.
+
+Luồng hoạt động:
+- Hash nội dung giống hệt tests/run_all.py.
+
+Đánh giá:
+- Duplicate hoàn toàn, dễ lệch về sau.
+- Nên xóa một file hoặc biến thành test thật.
+
+4.21. .vscode/settings.json
+---------------------------
+Mục đích:
+- Cấu hình VS Code Python env manager.
+
+Luồng hoạt động:
+- Không ảnh hưởng runtime.
+
+Đánh giá:
+- Không vấn đề lớn.
+
+4.22. sessions/testasp_01/endpoints.json
+----------------------------------------
+Mục đích:
+- Output runtime của crawler cho session testasp_01.
+
+Quan sát:
+- Có 8 endpoint hiện tại.
+- Một số endpoint high nhưng likely_vulns rỗng, ví dụ Register.asp.
+- Search.asp có tfSearch nhưng risk_level low và likely_vulns rỗng; điều này cho thấy classifier rule-based đang bỏ sót XSS candidate.
+
+4.23. sessions/testasp_01/logs.jsonl
+------------------------------------
+Mục đích:
+- Output request log của fuzzer.
+
+Quan sát:
+- File hiện tại có size 0.
+- Nếu analyze() chạy với logs rỗng, findings.json cũ có thể vẫn còn.
+
+4.24. sessions/testasp_01/findings.json
+---------------------------------------
+Mục đích:
+- Output finding sau analyze.
+
+Quan sát:
+- Có finding cũ về SQLi/XSS.
+- Không khớp với logs.jsonl hiện tại đang rỗng, nên đây có thể là dữ liệu stale.
+- Nên không track session output trong git hoặc ghi metadata run_id/timestamp rõ ràng.
+
+
+5. CÁC VẤN ĐỀ ƯU TIÊN
+====================
+
+Mức Critical/High:
+1. tests/run_all.py DRY_RUN không fuzz thật
+   - File: tests/run_all.py, dòng 22 và 52.
+   - DRY_RUN=True set ai_payloads = {}.
+   - fuzz_sqli/fuzz_xss yêu cầu plan có ep.id nên sẽ skip target.
+   - Cách sửa: luôn gọi generate_plan(endpoints); để generate_plan tự fallback khi Ollama offline, hoặc tạo generate_static_plan().
+
+2. Generic fuzzer bị lỗi runtime
+   - File: fuzzer/fuzzer.py, _send().
+   - LogEntry bắt buộc có technique nhưng _send() không truyền.
+   - fuzzer/__init__.py vẫn export fuzz, dễ gọi nhầm.
+   - Cách sửa: truyền technique theo vuln_type hoặc bỏ generic fuzzer.
+
+3. Analyzer có thể giữ findings cũ
+   - File: analyzer/log_analyzer.py, analyze().
+   - Khi không có log hoặc không có vulnerable log, hàm return [] mà không ghi findings.json rỗng.
+   - sessions/testasp_01 hiện có logs.jsonl rỗng nhưng findings.json vẫn có dữ liệu.
+   - Cách sửa: luôn _save([], session_dir) trước khi return trong các nhánh empty.
+
+4. Scope check chưa an toàn
+   - File: crawler/utils.py, in_scope().
+   - re.search(scope, netloc) không escape domain và có thể match sai host.
+   - Cách sửa: parse hostname lower, so sánh exact/subdomain.
+
+Mức Medium:
+5. Classifier bỏ sót XSS param
+   - File: crawler/classifier.py.
+   - tfSearch không match MED_PARAMS nên Search.asp bị low/no vuln.
+   - Cách sửa: normalize param name tốt hơn, thêm contains rule cho search/query/q/comment/msg/name, hoặc map theo input type/source form.
+
+6. Endpoint high nhưng không có likely_vulns
+   - File: crawler/classifier.py.
+   - Path login/register làm high nhưng Register.asp có likely_vulns rỗng.
+   - Fuzzer chỉ chạy theo likely_vulns nên endpoint high không được test.
+   - Cách sửa: nếu high do login/auth thì gán auth_bypass; nếu form text thì cân nhắc xss/sqli theo param.
+
+7. Multi-param fuzzing bị bỏ sót
+   - File: fuzzer/sqli_fuzzer.py và fuzzer/xss_fuzzer.py.
+   - used_payloads không include param, nên payload dùng cho param đầu không được thử lại ở param sau.
+   - XSS Playwright confirm cũng không giữ param, chỉ inject ep.params[0].
+   - Cách sửa: key used theo (param, payload), candidates lưu (param, payload).
+
+8. Time-based SQLi dễ false positive
+   - File: fuzzer/sqli_fuzzer.py.
+   - Dùng ngưỡng tuyệt đối 3500ms, không so baseline duration.
+   - Cách sửa: lưu baseline duration và yêu cầu delta đủ lớn, chạy confirm lại 2 lần.
+
+9. Thiếu dependency manifest
+   - Project import requests, bs4, playwright nhưng không có requirements.txt/pyproject.
+   - Cách sửa: thêm requirements.txt hoặc pyproject.toml, kèm hướng dẫn playwright install.
+
+10. Runtime/generated files đang được track
+   - __pycache__ và sessions output nằm trong git.
+   - Cách sửa: thêm .gitignore, bỏ track pycache/session generated nếu không cần fixture.
+
+Mức Low:
+11. Nhiều except Exception: pass làm khó debug
+   - File: crawler/static_crawler.py, crawler/js_crawler.py.
+   - Nên log debug có ngữ cảnh.
+
+12. LLM JSON parse chưa chặt
+   - File: llm/ollama_client.py.
+   - Regex greedy có thể parse sai nếu output lẫn text.
+   - Nên yêu cầu format JSON và validate schema ở caller.
+
+13. tests folder không chứa test thật
+   - tests/run_all.py là runner.
+   - tests/run_all_test.py duplicate.
+   - Nên thêm unit tests cho utils, classifier, payload planner, analyzer empty state.
+
+
+6. ĐỀ XUẤT CẢI THIỆN THEO THỨ TỰ
+================================
+
+Ưu tiên 1:
+- Sửa DRY_RUN để vẫn sinh payload plan fallback.
+- Sửa hoặc loại bỏ fuzzer/fuzzer.py.
+- Sửa analyzer để always write findings.json, kể cả empty.
+- Sửa in_scope exact/subdomain.
+
+Ưu tiên 2:
+- Cải thiện classifier rule-based cho form/search/login/register.
+- Sửa used_payloads/candidates theo param.
+- Thêm baseline duration cho time-based SQLi.
+- Thêm .gitignore và bỏ track __pycache__.
+
+Ưu tiên 3:
+- Thêm requirements.txt/pyproject.toml.
+- Tách runner khỏi tests, tạo CLI entrypoint.
+- Thêm unit test không cần network.
+- Thêm option cookie/auth/session.
+- Thêm metadata run_id vào endpoints/logs/findings.
+
+
+7. KẾT LUẬN
+===========
+
+Project có ý tưởng và module hóa tốt cho một scanner/fuzzer bảo mật web dùng cả rule-based và LLM. Kiến trúc tổng thể dễ hiểu: crawl endpoint -> classify risk -> plan payload -> fuzz SQLi/XSS -> analyze finding.
+
+Tuy nhiên trạng thái hiện tại có vài lỗi logic khiến pipeline dễ không tạo kết quả đúng, đặc biệt DRY_RUN tạo plan rỗng, generic fuzzer lỗi LogEntry, analyzer có thể giữ findings cũ, và classifier bỏ sót candidate XSS. Nếu sửa các điểm ưu tiên trên, codebase sẽ ổn hơn đáng kể về tính đúng đắn, khả năng tái chạy và độ tin cậy khi báo cáo lỗ hổng.

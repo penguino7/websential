@@ -8,8 +8,8 @@ OLLAMA_HOST  = "http://192.168.62.102:11434"   # đổi thành IP LAN nếu cầ
 OLLAMA_MODEL = "qwen2.5-coder:14b"       # model đã pull về
 
 # ── Target ────────────────────────────────────────────────────────────────────
-TARGET_URL = "https://juice-shop.herokuapp.com/#/"
-SCOPE      = "juice-shop.herokuapp.com"
+TARGET_URL = "http://testasp.vulnweb.com/"
+SCOPE      = "testasp.vulnweb.com"
 SESSION_ID = "testasp_01"
 
 # ── Crawler ───────────────────────────────────────────────────────────────────

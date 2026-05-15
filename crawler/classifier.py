@@ -13,18 +13,22 @@ from crawler.models      import Endpoint
 from llm.ollama_client   import call_json
 
 log        = logging.getLogger(__name__)
-BATCH_SIZE = 15
+BATCH_SIZE = 5   # giảm từ 15 → 5, mỗi lần gửi ít endpoint hơn
 
 HIGH_PATHS  = re.compile(r"/(admin|user|account|order|api|auth|login|register|profile)", re.I)
 HIGH_PARAMS = {"id", "user_id", "file", "path", "token", "redirect"}
 MED_PARAMS  = {"q", "query", "search", "name", "msg", "comment"}
 
 
-def classify(endpoints: list[Endpoint]) -> list[Endpoint]:
+def classify(endpoints: list[Endpoint], use_ai: bool = True) -> list[Endpoint]:
     """
     Phân loại risk_level và likely_vulns cho từng endpoint.
-    Dùng Ollama, fallback rule-based nếu lỗi.
+    use_ai=False → bỏ qua Ollama, dùng rule-based hoàn toàn.
     """
+    if not use_ai:
+        log.info("[classifier] Dùng rule-based (use_ai=False)")
+        return [_rule_classify(ep) for ep in endpoints]
+
     for i in range(0, len(endpoints), BATCH_SIZE):
         batch = endpoints[i: i + BATCH_SIZE]
         _classify_batch(batch)

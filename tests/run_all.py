@@ -12,21 +12,26 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 logging.basicConfig(level=logging.INFO, format="%(message)s")
 
 import config
-from llm.ollama_client      import is_alive
 from crawler.crawler        import crawl
 from fuzzer.payload_planner import generate_plan
 from fuzzer.sqli_fuzzer     import fuzz_sqli
 from fuzzer.xss_fuzzer      import fuzz_xss
 from analyzer.log_analyzer  import analyze
 
+# ── Chế độ test: True = không dùng Ollama, dùng payload cứng + rule-based
+DRY_RUN = True
+
 SESSION = Path("sessions") / config.SESSION_ID
 SESSION.mkdir(parents=True, exist_ok=True)
 
-# Kiểm tra Ollama
-if not is_alive():
-    print("❌ Ollama chưa chạy! Chạy: ollama serve")
-    sys.exit(1)
-print(f"✅ Ollama OK — model: {config.OLLAMA_MODEL}\n")
+if DRY_RUN:
+    print("⚠️  DRY RUN MODE — Không dùng Ollama, payload cứng + rule-based\n")
+else:
+    from llm.ollama_client import is_alive
+    if not is_alive():
+        print("❌ Ollama chưa chạy! Chạy: ollama serve")
+        sys.exit(1)
+    print(f"✅ Ollama OK — model: {config.OLLAMA_MODEL}\n")
 
 
 # ── BƯỚC 1: CRAWL ─────────────────────────────────────────────────────────────
@@ -34,7 +39,7 @@ print("═"*55)
 print("  BƯỚC 1 — CRAWL")
 print("═"*55)
 
-endpoints = crawl(SESSION)
+endpoints = crawl(SESSION, use_ai=not DRY_RUN)
 print(f"\n  {len(endpoints)} endpoints:")
 for ep in endpoints:
     icon = {"high":"🔴","medium":"🟡","low":"🟢"}.get(ep.risk_level,"⚪")
@@ -43,12 +48,14 @@ for ep in endpoints:
 
 # ── BƯỚC 2: PAYLOAD PLAN ──────────────────────────────────────────────────────
 print("\n" + "═"*55)
-print("  BƯỚC 2 — AI SINH PAYLOAD (RAG: OWASP + CWE)")
+print("  BƯỚC 2 — PAYLOAD PLAN")
+if DRY_RUN:
+    print("  [DRY RUN] Dùng payload cứng, bỏ qua AI Planner")
+    ai_payloads = {}
+else:
+    print("  AI SINH PAYLOAD (RAG: OWASP + CWE)")
+    ai_payloads = generate_plan(endpoints)
 print("═"*55)
-
-ai_payloads = generate_plan(endpoints)
-for ep_id, payloads in ai_payloads.items():
-    print(f"  [{ep_id}] AI sinh {len(payloads)} payloads bổ sung")
 
 
 # ── BƯỚC 3: FUZZ SQLi ─────────────────────────────────────────────────────────
