@@ -263,7 +263,7 @@ async def _auto_interact(page: Page, base_url: str, scope: str, seen_keys: set, 
             if clicked >= MAX_CLICKS:
                 break
             try:
-                # Lấy text để kiểm tra blacklist
+                # Lấy text để kiểm tra blacklist 
                 text = (await el.inner_text()).lower().strip()
                 href = (await el.get_attribute("href") or "").lower()
 
